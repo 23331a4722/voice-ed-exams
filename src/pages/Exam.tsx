@@ -2,78 +2,186 @@ import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Mic, MicOff, ChevronLeft, ChevronRight, Volume2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Volume2, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
 
+interface Question {
+  id: number;
+  question: string;
+  options?: string[];
+  type: 'text' | 'multiple-choice';
+}
+
 const Exam = () => {
   const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<string[]>(['', '', '']);
+  const [answers, setAnswers] = useState<string[]>(['', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes
   const [isRecording, setIsRecording] = useState(false);
+  const [isReading, setIsReading] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
-  const questions = [
+  const questions: Question[] = [
     {
       id: 1,
       question: 'What is the capital of France?',
-      type: 'text'
+      options: ['A: London', 'B: Paris', 'C: Berlin', 'D: Madrid'],
+      type: 'multiple-choice'
     },
     {
       id: 2,
-      question: 'Explain the process of photosynthesis in plants.',
-      type: 'text'
+      question: 'Which planet is known as the Red Planet?',
+      options: ['A: Venus', 'B: Mars', 'C: Jupiter', 'D: Saturn'],
+      type: 'multiple-choice'
     },
     {
       id: 3,
-      question: 'Calculate the area of a circle with radius 5 units.',
+      question: 'What is the largest ocean on Earth?',
+      options: ['A: Atlantic Ocean', 'B: Indian Ocean', 'C: Arctic Ocean', 'D: Pacific Ocean'],
+      type: 'multiple-choice'
+    },
+    {
+      id: 4,
+      question: 'Explain the process of photosynthesis in plants.',
       type: 'text'
     }
   ];
 
   const progress = ((currentQuestion + 1) / questions.length) * 100;
 
-  const speakQuestion = useCallback(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const text = `Question ${currentQuestion + 1} of ${questions.length}. ${questions[currentQuestion].question}. Say your answer or say next question to continue, previous question to go back, or submit exam to finish.`;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.85;
-      window.speechSynthesis.speak(utterance);
+  const stopRecording = useCallback(() => {
+    if (recognition) {
+      recognition.stop();
+      setIsRecording(false);
+      setRecognition(null);
     }
-  }, [currentQuestion, questions]);
+  }, [recognition]);
+
+  const startRecording = useCallback(() => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast.error('Speech recognition not supported');
+      return;
+    }
+
+    // Stop any existing recognition
+    if (recognition) {
+      recognition.stop();
+    }
+
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const newRecognition = new SpeechRecognitionAPI();
+    
+    newRecognition.continuous = true;
+    newRecognition.interimResults = true;
+    newRecognition.lang = 'en-US';
+
+    newRecognition.onstart = () => {
+      setIsRecording(true);
+      console.log('Recording started');
+    };
+
+    newRecognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      
+      const newAnswers = [...answers];
+      newAnswers[currentQuestion] = transcript;
+      setAnswers(newAnswers);
+    };
+
+    newRecognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      if (event.error !== 'no-speech' && event.error !== 'aborted' && event.error !== 'network') {
+        toast.error('Recording error. Please try again.');
+      }
+      setIsRecording(false);
+    };
+
+    newRecognition.onend = () => {
+      setIsRecording(false);
+      console.log('Recording ended');
+    };
+
+    setRecognition(newRecognition);
+    newRecognition.start();
+  }, [recognition, currentQuestion, answers]);
+
+  const readQuestionAndOptions = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+    setIsReading(true);
+
+    const currentQ = questions[currentQuestion];
+    let text = `Question ${currentQuestion + 1} of ${questions.length}. ${currentQ.question}`;
+
+    if (currentQ.options && currentQ.options.length > 0) {
+      text += '. The options are: ';
+      currentQ.options.forEach((option, index) => {
+        text += `${option}. `;
+      });
+    }
+
+    text += '. Please state your answer now.';
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onend = () => {
+      setIsReading(false);
+      // Automatically start recording after reading
+      setTimeout(() => {
+        toast.info('Recording your answer...', { duration: 2000 });
+        startRecording();
+      }, 500);
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      setIsReading(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }, [currentQuestion, questions, startRecording]);
 
   const handleNext = useCallback(() => {
+    stopRecording();
+    window.speechSynthesis.cancel();
+    
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
-      if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('Next question');
-        window.speechSynthesis.speak(utterance);
-      }
+      toast.success('Moving to next question');
     }
-  }, [currentQuestion, questions.length]);
+  }, [currentQuestion, questions.length, stopRecording]);
 
   const handlePrevious = useCallback(() => {
+    stopRecording();
+    window.speechSynthesis.cancel();
+    
     if (currentQuestion > 0) {
       setCurrentQuestion(prev => prev - 1);
-      if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('Previous question');
-        window.speechSynthesis.speak(utterance);
-      }
+      toast.success('Going to previous question');
     }
-  }, [currentQuestion]);
+  }, [currentQuestion, stopRecording]);
 
   const handleSubmit = useCallback(() => {
+    stopRecording();
     window.speechSynthesis.cancel();
-    toast.success('Exam submitted successfully!');
-    const utterance = new SpeechSynthesisUtterance('Exam submitted successfully!');
+    
+    const utterance = new SpeechSynthesisUtterance('Exam submitted successfully! Showing your results.');
+    utterance.onend = () => {
+      navigate('/results');
+    };
     window.speechSynthesis.speak(utterance);
-    navigate('/results');
-  }, [navigate]);
+    toast.success('Exam submitted successfully!');
+  }, [navigate, stopRecording]);
 
   // Enhanced voice commands specific to the exam
   const examVoiceCommands = [
@@ -95,47 +203,37 @@ const Exam = () => {
     {
       command: 'repeat question',
       keywords: ['repeat question', 'repeat', 'say again', 'read again'],
-      action: speakQuestion
-    },
-    {
-      command: 'answer question',
-      keywords: ['answer question', 'record answer', 'start recording'],
-      action: () => {
-        if (!isRecording) {
-          startRecording();
-        }
-      }
-    },
-    {
-      command: 'stop recording',
-      keywords: ['stop recording', 'stop', 'finish recording'],
-      action: () => {
-        if (isRecording) {
-          stopRecording();
-        }
-      }
+      action: readQuestionAndOptions
     }
   ];
 
   const { speak } = useVoiceNavigation(examVoiceCommands);
 
+  // Read question when component mounts
   useEffect(() => {
-    // Announce exam page on load
-    const announcement = 'Exam page. Voice commands available: Say next question, previous question, repeat question, answer question, or submit exam.';
+    const announcement = 'Exam started. Questions will be read automatically. Say next question to skip, previous question to go back, repeat question to hear again, or submit exam when finished.';
     const utterance = new SpeechSynthesisUtterance(announcement);
     utterance.rate = 0.9;
     utterance.onend = () => {
-      // Read the first question after the announcement
-      setTimeout(() => speakQuestion(), 500);
+      setTimeout(() => readQuestionAndOptions(), 1000);
     };
+    
     setTimeout(() => {
       window.speechSynthesis.speak(utterance);
     }, 500);
+
+    return () => {
+      stopRecording();
+      window.speechSynthesis.cancel();
+    };
   }, []);
 
+  // Read question when it changes
   useEffect(() => {
-    speakQuestion();
-  }, [currentQuestion, speakQuestion]);
+    if (currentQuestion > 0) {
+      setTimeout(() => readQuestionAndOptions(), 500);
+    }
+  }, [currentQuestion]);
 
   useEffect(() => {
     // Timer
@@ -167,62 +265,7 @@ const Exam = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startRecording = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error('Speech recognition not supported');
-      speak('Speech recognition not supported in this browser');
-      return;
-    }
-
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const newRecognition = new SpeechRecognitionAPI();
-    
-    newRecognition.continuous = true;
-    newRecognition.interimResults = true;
-    newRecognition.lang = 'en-US';
-
-    newRecognition.onstart = () => {
-      setIsRecording(true);
-      toast.info('Recording started. Speak your answer.');
-      speak('Recording your answer. Speak now.');
-    };
-
-    newRecognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      
-      const newAnswers = [...answers];
-      newAnswers[currentQuestion] = transcript;
-      setAnswers(newAnswers);
-    };
-
-    newRecognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setIsRecording(false);
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        toast.error('Recording error. Please try again.');
-        speak('Recording error. Please try again.');
-      }
-    };
-
-    newRecognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    setRecognition(newRecognition);
-    newRecognition.start();
-  };
-
-  const stopRecording = () => {
-    if (recognition) {
-      recognition.stop();
-      setIsRecording(false);
-      toast.success('Answer recorded');
-      speak('Answer recorded successfully');
-    }
-  };
+  const currentQ = questions[currentQuestion];
 
   return (
     <Layout>
@@ -233,11 +276,32 @@ const Exam = () => {
             <div className="flex items-center gap-3">
               <Volume2 className="h-6 w-6 text-primary" />
               <p className="text-accessible">
-                <strong>Voice Commands:</strong> "Next question" • "Previous question" • "Answer question" • "Repeat question" • "Submit exam"
+                <strong>Voice Mode Active:</strong> Questions auto-read with options. Answer automatically recorded. Say "next question", "previous question", "repeat question", or "submit exam"
               </p>
             </div>
           </CardContent>
         </Card>
+
+        {/* Recording Status */}
+        {(isReading || isRecording) && (
+          <Card className="mb-6 bg-accent/20 border-accent">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                {isReading ? (
+                  <>
+                    <Volume2 className="h-6 w-6 text-accent voice-pulse" />
+                    <p className="text-accessible font-medium">Reading question and options...</p>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-6 w-6 text-destructive voice-pulse" />
+                    <p className="text-accessible font-medium">Recording your answer... Speak now</p>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Timer */}
         <Card className="mb-6 gradient-card border-primary/30">
@@ -253,7 +317,7 @@ const Exam = () => {
         </Card>
 
         {/* Question */}
-        <Card className="mb-6 gradient-card">
+        <Card className="mb-6 gradient-card border-primary/50">
           <CardHeader>
             <div className="flex justify-between items-start mb-4">
               <CardTitle className="text-2xl">
@@ -262,9 +326,10 @@ const Exam = () => {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={speakQuestion}
+                onClick={readQuestionAndOptions}
                 className="min-w-[44px] min-h-[44px]"
                 aria-label="Repeat question"
+                disabled={isReading}
               >
                 <Volume2 className="h-5 w-5" />
               </Button>
@@ -272,42 +337,47 @@ const Exam = () => {
             <Progress value={progress} className="h-2 mb-4" />
           </CardHeader>
           <CardContent>
-            <p className="text-accessible-lg mb-6 font-medium">
-              {questions[currentQuestion].question}
-            </p>
+            <div className="mb-6">
+              <p className="text-accessible-lg font-semibold mb-4">
+                {currentQ.question}
+              </p>
 
-            {/* Answer Input */}
-            <div className="space-y-4">
-              <Textarea
-                value={answers[currentQuestion]}
-                onChange={(e) => {
-                  const newAnswers = [...answers];
-                  newAnswers[currentQuestion] = e.target.value;
-                  setAnswers(newAnswers);
-                }}
-                placeholder="Type your answer or use voice recording..."
-                className="min-h-[150px] text-accessible"
-                aria-label="Answer input"
-              />
+              {/* Options */}
+              {currentQ.options && currentQ.options.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  <p className="text-accessible font-medium text-muted-foreground">Options:</p>
+                  {currentQ.options.map((option, index) => (
+                    <div
+                      key={index}
+                      className="p-4 bg-background/50 rounded-lg border border-border"
+                    >
+                      <p className="text-accessible">{option}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-              {/* Voice Recording */}
-              <Button
-                onClick={isRecording ? stopRecording : startRecording}
-                variant={isRecording ? 'destructive' : 'default'}
-                className={`w-full min-h-[56px] text-lg ${isRecording ? 'voice-pulse shadow-glow' : ''}`}
-              >
-                {isRecording ? (
-                  <>
-                    <MicOff className="mr-2 h-5 w-5" />
-                    Stop Recording (or say "stop recording")
-                  </>
-                ) : (
-                  <>
-                    <Mic className="mr-2 h-5 w-5" />
-                    Record Voice Answer (or say "answer question")
-                  </>
+            {/* Answer Display */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-accessible font-medium">Your Answer:</p>
+                {isRecording && (
+                  <span className="text-sm text-destructive font-medium flex items-center gap-2">
+                    <span className="h-2 w-2 bg-destructive rounded-full animate-pulse" />
+                    Recording...
+                  </span>
                 )}
-              </Button>
+              </div>
+              <div className="min-h-[100px] p-4 bg-background/80 rounded-lg border-2 border-primary/30">
+                <p className="text-accessible">
+                  {answers[currentQuestion] || (
+                    <span className="text-muted-foreground italic">
+                      {isRecording ? 'Listening...' : 'Your answer will appear here as you speak'}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
