@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Mic, MicOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, ChevronLeft, ChevronRight, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
 
 const Exam = () => {
   const navigate = useNavigate();
@@ -39,12 +40,98 @@ const Exam = () => {
   const speakQuestion = useCallback(() => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const text = `Question ${currentQuestion + 1} of ${questions.length}. ${questions[currentQuestion].question}`;
+      const text = `Question ${currentQuestion + 1} of ${questions.length}. ${questions[currentQuestion].question}. Say your answer or say next question to continue, previous question to go back, or submit exam to finish.`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.85;
       window.speechSynthesis.speak(utterance);
     }
   }, [currentQuestion, questions]);
+
+  const handleNext = useCallback(() => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(prev => prev + 1);
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance('Next question');
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+  }, [currentQuestion, questions.length]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(prev => prev - 1);
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance('Previous question');
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+  }, [currentQuestion]);
+
+  const handleSubmit = useCallback(() => {
+    window.speechSynthesis.cancel();
+    toast.success('Exam submitted successfully!');
+    const utterance = new SpeechSynthesisUtterance('Exam submitted successfully!');
+    window.speechSynthesis.speak(utterance);
+    navigate('/results');
+  }, [navigate]);
+
+  // Enhanced voice commands specific to the exam
+  const examVoiceCommands = [
+    {
+      command: 'next question',
+      keywords: ['next question', 'next', 'skip'],
+      action: handleNext
+    },
+    {
+      command: 'previous question',
+      keywords: ['previous question', 'previous', 'back', 'go back'],
+      action: handlePrevious
+    },
+    {
+      command: 'submit exam',
+      keywords: ['submit exam', 'submit', 'finish exam', 'finish'],
+      action: handleSubmit
+    },
+    {
+      command: 'repeat question',
+      keywords: ['repeat question', 'repeat', 'say again', 'read again'],
+      action: speakQuestion
+    },
+    {
+      command: 'answer question',
+      keywords: ['answer question', 'record answer', 'start recording'],
+      action: () => {
+        if (!isRecording) {
+          startRecording();
+        }
+      }
+    },
+    {
+      command: 'stop recording',
+      keywords: ['stop recording', 'stop', 'finish recording'],
+      action: () => {
+        if (isRecording) {
+          stopRecording();
+        }
+      }
+    }
+  ];
+
+  const { speak } = useVoiceNavigation(examVoiceCommands);
+
+  useEffect(() => {
+    // Announce exam page on load
+    const announcement = 'Exam page. Voice commands available: Say next question, previous question, repeat question, answer question, or submit exam.';
+    const utterance = new SpeechSynthesisUtterance(announcement);
+    utterance.rate = 0.9;
+    utterance.onend = () => {
+      // Read the first question after the announcement
+      setTimeout(() => speakQuestion(), 500);
+    };
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 500);
+  }, []);
 
   useEffect(() => {
     speakQuestion();
@@ -72,7 +159,7 @@ const Exam = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [handleSubmit]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -83,6 +170,7 @@ const Exam = () => {
   const startRecording = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       toast.error('Speech recognition not supported');
+      speak('Speech recognition not supported in this browser');
       return;
     }
 
@@ -96,6 +184,7 @@ const Exam = () => {
     newRecognition.onstart = () => {
       setIsRecording(true);
       toast.info('Recording started. Speak your answer.');
+      speak('Recording your answer. Speak now.');
     };
 
     newRecognition.onresult = (event: any) => {
@@ -112,7 +201,10 @@ const Exam = () => {
     newRecognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       setIsRecording(false);
-      toast.error('Recording error. Please try again.');
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        toast.error('Recording error. Please try again.');
+        speak('Recording error. Please try again.');
+      }
     };
 
     newRecognition.onend = () => {
@@ -128,30 +220,25 @@ const Exam = () => {
       recognition.stop();
       setIsRecording(false);
       toast.success('Answer recorded');
+      speak('Answer recorded successfully');
     }
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
-    }
-  };
-
-  const handleSubmit = () => {
-    window.speechSynthesis.cancel();
-    toast.success('Exam submitted successfully!');
-    navigate('/results');
   };
 
   return (
     <Layout>
       <div className="max-w-3xl mx-auto">
+        {/* Voice Instructions Banner */}
+        <Card className="mb-6 bg-primary/10 border-primary">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Volume2 className="h-6 w-6 text-primary" />
+              <p className="text-accessible">
+                <strong>Voice Commands:</strong> "Next question" • "Previous question" • "Answer question" • "Repeat question" • "Submit exam"
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Timer */}
         <Card className="mb-6 gradient-card border-primary/30">
           <CardContent className="pt-6">
@@ -179,13 +266,13 @@ const Exam = () => {
                 className="min-w-[44px] min-h-[44px]"
                 aria-label="Repeat question"
               >
-                🔊
+                <Volume2 className="h-5 w-5" />
               </Button>
             </div>
             <Progress value={progress} className="h-2 mb-4" />
           </CardHeader>
           <CardContent>
-            <p className="text-accessible-lg mb-6">
+            <p className="text-accessible-lg mb-6 font-medium">
               {questions[currentQuestion].question}
             </p>
 
@@ -206,18 +293,18 @@ const Exam = () => {
               {/* Voice Recording */}
               <Button
                 onClick={isRecording ? stopRecording : startRecording}
-                variant={isRecording ? 'destructive' : 'secondary'}
-                className="w-full min-h-[56px] text-lg voice-pulse"
+                variant={isRecording ? 'destructive' : 'default'}
+                className={`w-full min-h-[56px] text-lg ${isRecording ? 'voice-pulse shadow-glow' : ''}`}
               >
                 {isRecording ? (
                   <>
                     <MicOff className="mr-2 h-5 w-5" />
-                    Stop Recording
+                    Stop Recording (or say "stop recording")
                   </>
                 ) : (
                   <>
                     <Mic className="mr-2 h-5 w-5" />
-                    Record Voice Answer
+                    Record Voice Answer (or say "answer question")
                   </>
                 )}
               </Button>

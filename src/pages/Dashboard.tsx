@@ -59,23 +59,23 @@ const Dashboard = () => {
                   : 'border-border opacity-75'
               } transition-all`}
             >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-2xl mb-2">{exam.title}</CardTitle>
-                    <CardDescription className="text-accessible">
-                      <div className="flex items-center gap-4 mt-2">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {exam.duration}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <ClipboardList className="h-4 w-4" />
-                          {exam.questions} questions
-                        </span>
-                      </div>
-                    </CardDescription>
-                  </div>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl mb-2">{exam.title}</CardTitle>
+                  <CardDescription className="text-accessible">
+                    <span className="flex items-center gap-4 mt-2">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {exam.duration}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ClipboardList className="h-4 w-4" />
+                        {exam.questions} questions
+                      </span>
+                    </span>
+                  </CardDescription>
+                </div>
                   {exam.status === 'completed' && (
                     <CheckCircle2 className="h-6 w-6 text-success" />
                   )}
