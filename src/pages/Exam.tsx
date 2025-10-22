@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, Volume2, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
+import { ExamHeader } from '@/components/exam/ExamHeader';
+import { VoiceInstructions } from '@/components/exam/VoiceInstructions';
+import { VoiceStatusBanner } from '@/components/exam/VoiceStatusBanner';
+import { ExamQuestion } from '@/components/exam/ExamQuestion';
+import { ExamAnswer } from '@/components/exam/ExamAnswer';
+import { ExamNavigation } from '@/components/exam/ExamNavigation';
 
 interface Question {
   id: number;
@@ -50,7 +52,7 @@ const Exam = () => {
     }
   ];
 
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
+  const TOTAL_TIME = 3600; // 60 minutes
 
   const stopRecording = useCallback(() => {
     if (recognition) {
@@ -310,7 +312,6 @@ const Exam = () => {
   }, [currentQuestion]);
 
   useEffect(() => {
-    // Timer
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 0) {
@@ -318,7 +319,6 @@ const Exam = () => {
           handleSubmit();
           return 0;
         }
-        // Voice alerts at 5 and 1 minute marks
         if (prev === 300 || prev === 60) {
           const minutes = Math.floor(prev / 60);
           const alert = `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
@@ -333,158 +333,34 @@ const Exam = () => {
     return () => clearInterval(timer);
   }, [handleSubmit]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const currentQ = questions[currentQuestion];
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto">
-        {/* Voice Instructions Banner */}
-        <Card className="mb-6 bg-primary/10 border-primary">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Volume2 className="h-6 w-6 text-primary" />
-              <p className="text-accessible">
-                <strong>Voice Mode Active:</strong> Questions auto-read with options. Answer automatically recorded. Say "next question", "previous question", "repeat question", or "submit exam"
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recording Status */}
-        {(isReading || isRecording) && (
-          <Card className="mb-6 bg-accent/20 border-accent">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                {isReading ? (
-                  <>
-                    <Volume2 className="h-6 w-6 text-accent voice-pulse" />
-                    <p className="text-accessible font-medium">Reading question and options...</p>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-6 w-6 text-destructive voice-pulse" />
-                    <p className="text-accessible font-medium">Recording your answer... Speak now</p>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Timer */}
-        <Card className="mb-6 gradient-card border-primary/30">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-accessible">Time Remaining</span>
-              <span className={`text-2xl font-bold ${timeLeft < 300 ? 'text-warning' : ''}`}>
-                {formatTime(timeLeft)}
-              </span>
-            </div>
-            <Progress value={(timeLeft / 3600) * 100} className="h-2" />
-          </CardContent>
-        </Card>
-
-        {/* Question */}
-        <Card className="mb-6 gradient-card border-primary/50">
-          <CardHeader>
-            <div className="flex justify-between items-start mb-4">
-              <CardTitle className="text-2xl">
-                Question {currentQuestion + 1} of {questions.length}
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={readQuestionAndOptions}
-                className="min-w-[44px] min-h-[44px]"
-                aria-label="Repeat question"
-                disabled={isReading}
-              >
-                <Volume2 className="h-5 w-5" />
-              </Button>
-            </div>
-            <Progress value={progress} className="h-2 mb-4" />
-          </CardHeader>
-          <CardContent>
-            <div className="mb-6">
-              <p className="text-accessible-lg font-semibold mb-4">
-                {currentQ.question}
-              </p>
-
-              {/* Options */}
-              {currentQ.options && currentQ.options.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <p className="text-accessible font-medium text-muted-foreground">Options:</p>
-                  {currentQ.options.map((option, index) => (
-                    <div
-                      key={index}
-                      className="p-4 bg-background/50 rounded-lg border border-border"
-                    >
-                      <p className="text-accessible">{option}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Answer Display */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-accessible font-medium">Your Answer:</p>
-                {isRecording && (
-                  <span className="text-sm text-destructive font-medium flex items-center gap-2">
-                    <span className="h-2 w-2 bg-destructive rounded-full animate-pulse" />
-                    Recording...
-                  </span>
-                )}
-              </div>
-              <div className="min-h-[100px] p-4 bg-background/80 rounded-lg border-2 border-primary/30">
-                <p className="text-accessible">
-                  {answers[currentQuestion] || (
-                    <span className="text-muted-foreground italic">
-                      {isRecording ? 'Listening...' : 'Your answer will appear here as you speak'}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Navigation */}
-        <div className="flex gap-4">
-          <Button
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
-            variant="outline"
-            className="flex-1 min-h-[56px]"
-          >
-            <ChevronLeft className="mr-2 h-5 w-5" />
-            Previous
-          </Button>
-          
-          {currentQuestion === questions.length - 1 ? (
-            <Button
-              onClick={handleSubmit}
-              className="flex-1 min-h-[56px] shadow-glow"
-            >
-              Submit Exam
-            </Button>
-          ) : (
-            <Button
-              onClick={handleNext}
-              className="flex-1 min-h-[56px]"
-            >
-              Next
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Button>
-          )}
-        </div>
+      <div className="max-w-3xl mx-auto space-y-6">
+        <VoiceInstructions />
+        
+        <VoiceStatusBanner isReading={isReading} isRecording={isRecording} />
+        
+        <ExamHeader timeLeft={timeLeft} totalTime={TOTAL_TIME} />
+        
+        <ExamQuestion
+          question={currentQ}
+          currentIndex={currentQuestion}
+          totalQuestions={questions.length}
+          onRepeat={readQuestionAndOptions}
+          isReading={isReading}
+        />
+        
+        <ExamAnswer answer={answers[currentQuestion]} isRecording={isRecording} />
+        
+        <ExamNavigation
+          currentQuestion={currentQuestion}
+          totalQuestions={questions.length}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          onSubmit={handleSubmit}
+        />
       </div>
     </Layout>
   );
