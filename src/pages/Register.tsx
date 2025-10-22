@@ -5,15 +5,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+  email: z.string().email('Invalid email address').max(255),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(100),
+  role: z.enum(['student', 'teacher', 'admin']),
+});
 
 const Register = () => {
   const navigate = useNavigate();
+  const { signUp, user } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const announcement = 'Registration page. Create your VoiceEd account. Please select your role: student or teacher.';
@@ -24,17 +42,32 @@ const Register = () => {
     }, 500);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !email || !password || !role) {
-      toast.error('Please fill in all fields');
-      return;
+    try {
+      // Validate inputs
+      const validatedData = registerSchema.parse({
+        name,
+        email,
+        password,
+        role,
+      });
+      
+      setIsLoading(true);
+      await signUp(
+        validatedData.email,
+        validatedData.password,
+        validatedData.name,
+        validatedData.role as 'student' | 'teacher' | 'admin'
+      );
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    // Mock registration
-    toast.success('Registration successful! Please login.');
-    navigate('/login');
   };
 
   return (
@@ -114,16 +147,25 @@ const Register = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="student" className="text-accessible">Student</SelectItem>
-                    <SelectItem value="teacher" className="text-accessible">Teacher/Admin</SelectItem>
+                    <SelectItem value="teacher" className="text-accessible">Teacher</SelectItem>
+                    <SelectItem value="admin" className="text-accessible">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full min-h-[56px] text-lg shadow-glow"
               >
-                Create Account
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
               </Button>
 
               <div className="text-center">

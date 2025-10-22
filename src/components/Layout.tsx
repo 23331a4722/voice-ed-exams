@@ -4,6 +4,7 @@ import { Home, ClipboardList, BarChart3, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VoiceButton } from './VoiceButton';
 import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ export const Layout = ({ children, showNav = true }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isListening, startListening, stopListening } = useVoiceNavigation();
+  const { signOut, userRole } = useAuth();
 
   const navItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
@@ -46,7 +48,7 @@ export const Layout = ({ children, showNav = true }: LayoutProps) => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate('/login')}
+              onClick={signOut}
               aria-label="Logout"
               className="min-w-[44px] min-h-[44px]"
             >
@@ -70,7 +72,16 @@ export const Layout = ({ children, showNav = true }: LayoutProps) => {
         >
           <div className="container mx-auto px-4">
             <div className="flex justify-around items-center max-w-2xl mx-auto">
-              {navItems.map((item) => {
+              {navItems
+                .filter(item => {
+                  // Show Dashboard, Exams, Results for students
+                  if (userRole === 'student') {
+                    return item.path !== '/admin';
+                  }
+                  // Show only Admin for teachers/admins
+                  return item.path === '/admin';
+                })
+                .map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (

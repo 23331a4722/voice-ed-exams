@@ -4,13 +4,33 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address').max(255),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(100),
+});
 
 const Login = () => {
   const navigate = useNavigate();
+  const { signIn, user, userRole, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (user && userRole && !authLoading) {
+      if (userRole === 'admin' || userRole === 'teacher') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
+    }
+  }, [user, userRole, authLoading, navigate]);
 
   useEffect(() => {
     const announcement = 'Login page. Enter your credentials to access VoiceEd.';
@@ -21,17 +41,24 @@ const Login = () => {
     }, 500);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error('Please fill in all fields');
-      return;
+    try {
+      // Validate inputs
+      loginSchema.parse({ email, password });
+      
+      setIsLoading(true);
+      await signIn(email, password);
+      
+      // Navigation is handled by useEffect after role is fetched
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    // Mock authentication - in production, this would be real auth
-    toast.success('Login successful!');
-    navigate('/dashboard');
   };
 
   return (
@@ -88,9 +115,17 @@ const Login = () => {
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full min-h-[56px] text-lg shadow-glow"
               >
-                Sign In
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
 
               <div className="text-center">
