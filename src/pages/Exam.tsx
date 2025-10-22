@@ -61,59 +61,120 @@ const Exam = () => {
   }, [recognition]);
 
   const startRecording = useCallback(() => {
+    // Check browser support
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error('Speech recognition not supported');
+      toast.error('Speech recognition is not supported. Please use Chrome or Edge browser.');
       return;
     }
 
-    // Stop any existing recognition
+    // Stop any existing recognition first
     if (recognition) {
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.log('Error stopping previous recognition:', e);
+      }
     }
 
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const newRecognition = new SpeechRecognitionAPI();
-    
-    newRecognition.continuous = true;
-    newRecognition.interimResults = true;
-    newRecognition.lang = 'en-US';
-
-    newRecognition.onstart = () => {
-      setIsRecording(true);
-      console.log('Recording started');
-    };
-
-    newRecognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
+    try {
+      const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const newRecognition = new SpeechRecognitionAPI();
       
-      const newAnswers = [...answers];
-      newAnswers[currentQuestion] = transcript;
-      setAnswers(newAnswers);
-    };
+      newRecognition.continuous = true;
+      newRecognition.interimResults = true;
+      newRecognition.lang = 'en-US';
+      newRecognition.maxAlternatives = 1;
 
-    newRecognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error !== 'no-speech' && event.error !== 'aborted' && event.error !== 'network') {
-        toast.error('Recording error. Please try again.');
-      }
+      newRecognition.onstart = () => {
+        setIsRecording(true);
+        console.log('Recording started');
+      };
+
+      newRecognition.onresult = (event: any) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        // Combine existing answer with new transcript
+        const existingAnswer = answers[currentQuestion] || '';
+        const newAnswer = (existingAnswer + finalTranscript + interimTranscript).trim();
+        
+        const newAnswers = [...answers];
+        newAnswers[currentQuestion] = newAnswer;
+        setAnswers(newAnswers);
+      };
+
+      newRecognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        
+        // Handle specific errors
+        switch (event.error) {
+          case 'no-speech':
+            // Don't show error for no speech, just continue listening
+            break;
+          case 'audio-capture':
+            toast.error('No microphone detected. Please check your microphone.');
+            setIsRecording(false);
+            break;
+          case 'not-allowed':
+            toast.error('Microphone permission denied. Please enable microphone access.');
+            setIsRecording(false);
+            break;
+          case 'network':
+            // Network errors are usually temporary and non-fatal
+            console.log('Network error (usually temporary, continuing...)');
+            break;
+          case 'aborted':
+            // Normal when stopping
+            break;
+          default:
+            toast.error('Recording error. Please try speaking again.');
+            setIsRecording(false);
+        }
+      };
+
+      newRecognition.onend = () => {
+        console.log('Recording ended');
+        // Only update state if we're actually stopping
+        if (isRecording) {
+          setIsRecording(false);
+        }
+      };
+
+      setRecognition(newRecognition);
+      
+      // Start with small delay for initialization
+      setTimeout(() => {
+        try {
+          newRecognition.start();
+        } catch (err) {
+          console.error('Error starting recording:', err);
+          setIsRecording(false);
+          toast.error('Could not start recording. Please try again.');
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error initializing speech recognition:', error);
       setIsRecording(false);
-    };
-
-    newRecognition.onend = () => {
-      setIsRecording(false);
-      console.log('Recording ended');
-    };
-
-    setRecognition(newRecognition);
-    newRecognition.start();
-  }, [recognition, currentQuestion, answers]);
+      toast.error('Failed to initialize voice recording');
+    }
+  }, [recognition, currentQuestion, answers, isRecording]);
 
   const readQuestionAndOptions = useCallback(() => {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in this browser');
+      return;
+    }
 
+    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
     setIsReading(true);
 
@@ -133,23 +194,36 @@ const Exam = () => {
     utterance.rate = 0.85;
     utterance.pitch = 1;
     utterance.volume = 1;
+    utterance.lang = 'en-US';
 
     utterance.onend = () => {
       setIsReading(false);
       // Automatically start recording after reading
       setTimeout(() => {
-        toast.info('Recording your answer...', { duration: 2000 });
-        startRecording();
+        if (!isRecording) {
+          toast.info('🎤 Recording your answer...', { duration: 2000 });
+          startRecording();
+        }
       }, 500);
     };
 
     utterance.onerror = (event) => {
       console.error('Speech synthesis error:', event);
       setIsReading(false);
+      // Even if speech fails, allow recording
+      setTimeout(() => {
+        if (!isRecording) {
+          toast.info('🎤 Recording your answer...', { duration: 2000 });
+          startRecording();
+        }
+      }, 500);
     };
 
-    window.speechSynthesis.speak(utterance);
-  }, [currentQuestion, questions, startRecording]);
+    // Use setTimeout to ensure speech synthesis is ready
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 100);
+  }, [currentQuestion, questions, startRecording, isRecording]);
 
   const handleNext = useCallback(() => {
     stopRecording();

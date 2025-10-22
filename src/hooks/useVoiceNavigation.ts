@@ -15,12 +15,24 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
 
   const speak = useCallback((text: string) => {
     if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-      window.speechSynthesis.cancel(); // Clear queue
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.cancel(); // Clear queue
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        utterance.lang = 'en-US';
+        
+        utterance.onerror = (event) => {
+          console.error('Speech synthesis error:', event);
+        };
+        
+        setTimeout(() => {
+          window.speechSynthesis.speak(utterance);
+        }, 50);
+      } catch (error) {
+        console.error('Error in speech synthesis:', error);
+      }
     }
   }, []);
 
@@ -85,45 +97,86 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
   }, [allCommands, speak]);
 
   const startListening = useCallback(() => {
+    // Check browser support
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error('Speech recognition not supported in this browser');
+      toast.error('Speech recognition is not supported in this browser. Try Chrome or Edge.');
       return;
     }
 
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const newRecognition = new SpeechRecognitionAPI();
-    
-    newRecognition.continuous = false;
-    newRecognition.interimResults = false;
-    newRecognition.lang = 'en-US';
+    // Check if already listening
+    if (recognition && isListening) {
+      return;
+    }
 
-    newRecognition.onstart = () => {
-      setIsListening(true);
-      toast.info('Listening...');
-    };
-
-    newRecognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log('Voice command:', transcript);
-      processCommand(transcript);
-    };
-
-    newRecognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
+    try {
+      const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const newRecognition = new SpeechRecognitionAPI();
       
-      if (event.error !== 'no-speech') {
-        toast.error('Voice recognition error. Please try again.');
-      }
-    };
+      newRecognition.continuous = false;
+      newRecognition.interimResults = false;
+      newRecognition.lang = 'en-US';
+      newRecognition.maxAlternatives = 1;
 
-    newRecognition.onend = () => {
+      newRecognition.onstart = () => {
+        setIsListening(true);
+        toast.info('🎤 Listening for commands...', { duration: 2000 });
+      };
+
+      newRecognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Voice command received:', transcript);
+        processCommand(transcript);
+      };
+
+      newRecognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        
+        // Handle specific errors gracefully
+        switch (event.error) {
+          case 'no-speech':
+            toast.info('No speech detected. Please try again.');
+            break;
+          case 'audio-capture':
+            toast.error('No microphone detected. Please check your microphone.');
+            break;
+          case 'not-allowed':
+            toast.error('Microphone permission denied. Please enable microphone access.');
+            break;
+          case 'network':
+            // Network errors are common and usually temporary, don't show error
+            console.log('Network error in speech recognition (usually temporary)');
+            break;
+          case 'aborted':
+            // Aborted is normal when stopping, don't show error
+            break;
+          default:
+            toast.error('Voice recognition error. Please try again.');
+        }
+      };
+
+      newRecognition.onend = () => {
+        setIsListening(false);
+      };
+
+      setRecognition(newRecognition);
+      
+      // Start with a small delay to ensure proper initialization
+      setTimeout(() => {
+        try {
+          newRecognition.start();
+        } catch (err) {
+          console.error('Error starting recognition:', err);
+          setIsListening(false);
+          toast.error('Could not start voice recognition. Please try again.');
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error initializing speech recognition:', error);
+      toast.error('Failed to initialize voice recognition');
       setIsListening(false);
-    };
-
-    setRecognition(newRecognition);
-    newRecognition.start();
-  }, [processCommand]);
+    }
+  }, [processCommand, recognition, isListening]);
 
   const stopListening = useCallback(() => {
     if (recognition) {
