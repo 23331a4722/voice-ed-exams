@@ -50,7 +50,7 @@ const Exam = () => {
     }
   ];
 
-  const TOTAL_TIME = 3600; // 60 minutes
+  const TOTAL_TIME = 3600;
 
   // Initialize exam session with persistence
   const {
@@ -176,7 +176,13 @@ const Exam = () => {
       setIsRecording(false);
       toast.error('Failed to initialize voice recording');
     }
-  }, [recognition, currentQuestion, answers, isRecording]);
+  }, [recognition, currentQuestion, answers, isRecording, updateAnswer]);
+
+  // Clear answer command
+  const handleClearAnswer = useCallback(() => {
+    updateAnswer(currentQuestion, '');
+    toast.success('Answer cleared');
+  }, [currentQuestion, updateAnswer]);
 
   const readQuestionAndOptions = useCallback(() => {
     if (!('speechSynthesis' in window)) {
@@ -268,12 +274,16 @@ const Exam = () => {
     window.speechSynthesis.speak(utterance);
   }, [navigate, stopRecording, completeSession]);
 
-  // Voice command to clear current answer
-  const handleClearAnswer = useCallback(() => {
-    updateAnswer(currentQuestion, '');
-    toast.success('Answer cleared');
-    speak('Answer cleared');
-  }, [currentQuestion, updateAnswer]);
+
+  // Voice command to read current answer
+  const handleSpeakAnswer = useCallback(() => {
+    const answer = answers[currentQuestion];
+    if (answer) {
+      speak(`Your current answer is: ${answer}`);
+    } else {
+      speak('No answer recorded yet');
+    }
+  }, [answers, currentQuestion]);
 
   // Enhanced voice commands specific to the exam
   const examVoiceCommands = [
@@ -311,25 +321,66 @@ const Exam = () => {
       command: 'clear answer',
       keywords: ['clear answer', 'delete answer', 'remove answer', 'erase answer'],
       action: handleClearAnswer
+    },
+    {
+      command: 'read answer',
+      keywords: ['read answer', 'read my answer', 'what did I say', 'my answer'],
+      action: handleSpeakAnswer
     }
   ];
 
   const { speak, isListening, startListening } = useVoiceNavigation(examVoiceCommands);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch(e.key) {
+        case 'ArrowRight':
+          if (currentQuestion < questions.length - 1) {
+            handleNext();
+          }
+          break;
+        case 'ArrowLeft':
+          if (currentQuestion > 0) {
+            handlePrevious();
+          }
+          break;
+        case ' ':
+          e.preventDefault();
+          if (isRecording) {
+            stopRecording();
+          } else {
+            startRecording();
+          }
+          break;
+        case 'r':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            readQuestionAndOptions();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentQuestion, questions.length, isRecording, handleNext, handlePrevious, stopRecording, startRecording, readQuestionAndOptions]);
+
   // Read question and start voice listening when component mounts
   useEffect(() => {
-    const announcement = 'Exam started. This is a fully voice-driven exam. Questions will be read automatically and your answers will be recorded. Say next question to skip, previous question to go back, repeat question to hear again, stop recording to pause, or submit exam when finished.';
+    const announcement = 'Exam started. This is a fully voice-driven exam. Questions will be read automatically and your answers will be saved in real-time. Say next question to skip, previous question to go back, repeat question to hear again, clear answer to delete, read answer to hear your response, stop recording to pause, or submit exam when finished. You can also use keyboard shortcuts: arrow keys to navigate, spacebar to start or stop recording, and Control R to repeat the question.';
     const utterance = new SpeechSynthesisUtterance(announcement);
     utterance.rate = 0.9;
     utterance.onend = () => {
-      // Start voice listening for commands
       setTimeout(() => {
         if (!isListening) {
           startListening();
           toast.info('🎤 Voice commands active', { duration: 2000 });
         }
       }, 500);
-      // Read first question
       setTimeout(() => readQuestionAndOptions(), 1000);
     };
     
@@ -375,43 +426,6 @@ const Exam = () => {
 
   const currentQ = questions[currentQuestion];
 
-  // Keyboard shortcuts as fallback
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Prevent shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      switch (e.key) {
-        case 'ArrowRight':
-          e.preventDefault();
-          handleNext();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          handlePrevious();
-          break;
-        case ' ':
-          e.preventDefault();
-          if (isRecording) {
-            stopRecording();
-          } else {
-            startRecording();
-          }
-          break;
-        case 'r':
-        case 'R':
-          e.preventDefault();
-          readQuestionAndOptions();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentQuestion, isRecording, handleNext, handlePrevious, readQuestionAndOptions, startRecording, stopRecording]);
-
   if (isLoading) {
     return (
       <Layout>
@@ -428,6 +442,7 @@ const Exam = () => {
   return (
     <Layout>
       <div className="max-w-3xl mx-auto space-y-6">
+        
         <VoiceInstructions />
         
         <VoiceStatusBanner isReading={isReading} isRecording={isRecording} />
