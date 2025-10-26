@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface ExamNavigationProps {
   currentQuestion: number;
@@ -12,42 +12,23 @@ interface ExamNavigationProps {
 export const ExamNavigation = ({
   currentQuestion,
   totalQuestions,
-  onPrevious,
-  onNext,
-  onSubmit,
 }: ExamNavigationProps) => {
-  const isFirstQuestion = currentQuestion === 0;
-  const isLastQuestion = currentQuestion === totalQuestions - 1;
+  const progress = ((currentQuestion + 1) / totalQuestions) * 100;
 
   return (
-    <div className="flex gap-4">
-      <Button
-        onClick={onPrevious}
-        disabled={isFirstQuestion}
-        variant="outline"
-        className="flex-1 min-h-[56px] hover-scale"
-      >
-        <ChevronLeft className="mr-2 h-5 w-5" />
-        Previous
-      </Button>
-      
-      {isLastQuestion ? (
-        <Button
-          onClick={onSubmit}
-          className="flex-1 min-h-[56px] shadow-glow hover-scale"
-        >
-          <CheckCircle className="mr-2 h-5 w-5" />
-          Submit Exam
-        </Button>
-      ) : (
-        <Button
-          onClick={onNext}
-          className="flex-1 min-h-[56px] hover-scale"
-        >
-          Next
-          <ChevronRight className="ml-2 h-5 w-5" />
-        </Button>
-      )}
-    </div>
+    <Card>
+      <CardContent className="pt-6">
+        <div className="space-y-3">
+          <div className="flex justify-between items-center text-sm text-muted-foreground">
+            <span>Question {currentQuestion + 1} of {totalQuestions}</span>
+            <span>{Math.round(progress)}% Complete</span>
+          </div>
+          <Progress value={progress} className="h-2" />
+          <p className="text-xs text-center text-muted-foreground italic">
+            Use voice commands to navigate (no buttons needed)
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 };

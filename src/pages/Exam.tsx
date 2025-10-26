@@ -263,34 +263,52 @@ const Exam = () => {
   const examVoiceCommands = [
     {
       command: 'next question',
-      keywords: ['next question', 'next', 'skip'],
+      keywords: ['next question', 'next', 'skip', 'move on'],
       action: handleNext
     },
     {
       command: 'previous question',
-      keywords: ['previous question', 'previous', 'back', 'go back'],
+      keywords: ['previous question', 'previous', 'back', 'go back', 'last question'],
       action: handlePrevious
     },
     {
       command: 'submit exam',
-      keywords: ['submit exam', 'submit', 'finish exam', 'finish'],
+      keywords: ['submit exam', 'submit', 'finish exam', 'finish', 'complete exam', 'done'],
       action: handleSubmit
     },
     {
       command: 'repeat question',
-      keywords: ['repeat question', 'repeat', 'say again', 'read again'],
+      keywords: ['repeat question', 'repeat', 'say again', 'read again', 'what was the question'],
       action: readQuestionAndOptions
+    },
+    {
+      command: 'stop recording',
+      keywords: ['stop recording', 'stop', 'pause recording', 'pause'],
+      action: stopRecording
+    },
+    {
+      command: 'start recording',
+      keywords: ['start recording', 'record', 'begin recording', 'resume'],
+      action: startRecording
     }
   ];
 
-  const { speak } = useVoiceNavigation(examVoiceCommands);
+  const { speak, isListening, startListening } = useVoiceNavigation(examVoiceCommands);
 
-  // Read question when component mounts
+  // Read question and start voice listening when component mounts
   useEffect(() => {
-    const announcement = 'Exam started. Questions will be read automatically. Say next question to skip, previous question to go back, repeat question to hear again, or submit exam when finished.';
+    const announcement = 'Exam started. This is a fully voice-driven exam. Questions will be read automatically and your answers will be recorded. Say next question to skip, previous question to go back, repeat question to hear again, stop recording to pause, or submit exam when finished.';
     const utterance = new SpeechSynthesisUtterance(announcement);
     utterance.rate = 0.9;
     utterance.onend = () => {
+      // Start voice listening for commands
+      setTimeout(() => {
+        if (!isListening) {
+          startListening();
+          toast.info('🎤 Voice commands active', { duration: 2000 });
+        }
+      }, 500);
+      // Read first question
       setTimeout(() => readQuestionAndOptions(), 1000);
     };
     
@@ -357,9 +375,9 @@ const Exam = () => {
         <ExamNavigation
           currentQuestion={currentQuestion}
           totalQuestions={questions.length}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-          onSubmit={handleSubmit}
+          onPrevious={() => {}}
+          onNext={() => {}}
+          onSubmit={() => {}}
         />
       </div>
     </Layout>
