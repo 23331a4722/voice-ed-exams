@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
+import { useExamSession } from '@/hooks/useExamSession';
 import { ExamHeader } from '@/components/exam/ExamHeader';
 import { VoiceInstructions } from '@/components/exam/VoiceInstructions';
 import { VoiceStatusBanner } from '@/components/exam/VoiceStatusBanner';
@@ -19,9 +20,6 @@ interface Question {
 
 const Exam = () => {
   const navigate = useNavigate();
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<string[]>(['', '', '', '']);
-  const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes
   const [isRecording, setIsRecording] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
@@ -53,6 +51,19 @@ const Exam = () => {
   ];
 
   const TOTAL_TIME = 3600; // 60 minutes
+
+  // Initialize exam session with persistence
+  const {
+    sessionId,
+    currentQuestion,
+    timeLeft,
+    answers,
+    isLoading,
+    updateAnswer,
+    updateCurrentQuestion,
+    updateTime,
+    completeSession
+  } = useExamSession(questions.length);
 
   const stopRecording = useCallback(() => {
     if (recognition) {
@@ -105,13 +116,10 @@ const Exam = () => {
           }
         }
         
-        // Combine existing answer with new transcript
+        // Update answer using the session hook
         const existingAnswer = answers[currentQuestion] || '';
         const newAnswer = (existingAnswer + finalTranscript + interimTranscript).trim();
-        
-        const newAnswers = [...answers];
-        newAnswers[currentQuestion] = newAnswer;
-        setAnswers(newAnswers);
+        updateAnswer(currentQuestion, newAnswer);
       };
 
       newRecognition.onerror = (event: any) => {
@@ -232,32 +240,40 @@ const Exam = () => {
     window.speechSynthesis.cancel();
     
     if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
+      updateCurrentQuestion(currentQuestion + 1);
       toast.success('Moving to next question');
     }
-  }, [currentQuestion, questions.length, stopRecording]);
+  }, [currentQuestion, questions.length, stopRecording, updateCurrentQuestion]);
 
   const handlePrevious = useCallback(() => {
     stopRecording();
     window.speechSynthesis.cancel();
     
     if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
+      updateCurrentQuestion(currentQuestion - 1);
       toast.success('Going to previous question');
     }
-  }, [currentQuestion, stopRecording]);
+  }, [currentQuestion, stopRecording, updateCurrentQuestion]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     stopRecording();
     window.speechSynthesis.cancel();
+    
+    await completeSession();
     
     const utterance = new SpeechSynthesisUtterance('Exam submitted successfully! Showing your results.');
     utterance.onend = () => {
       navigate('/results');
     };
     window.speechSynthesis.speak(utterance);
-    toast.success('Exam submitted successfully!');
-  }, [navigate, stopRecording]);
+  }, [navigate, stopRecording, completeSession]);
+
+  // Voice command to clear current answer
+  const handleClearAnswer = useCallback(() => {
+    updateAnswer(currentQuestion, '');
+    toast.success('Answer cleared');
+    speak('Answer cleared');
+  }, [currentQuestion, updateAnswer]);
 
   // Enhanced voice commands specific to the exam
   const examVoiceCommands = [
@@ -290,6 +306,11 @@ const Exam = () => {
       command: 'start recording',
       keywords: ['start recording', 'record', 'begin recording', 'resume'],
       action: startRecording
+    },
+    {
+      command: 'clear answer',
+      keywords: ['clear answer', 'delete answer', 'remove answer', 'erase answer'],
+      action: handleClearAnswer
     }
   ];
 
@@ -329,29 +350,80 @@ const Exam = () => {
     }
   }, [currentQuestion]);
 
+  // Timer effect with session persistence
   useEffect(() => {
+    if (isLoading) return;
+
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 0) {
-          clearInterval(timer);
-          handleSubmit();
-          return 0;
-        }
-        if (prev === 300 || prev === 60) {
-          const minutes = Math.floor(prev / 60);
-          const alert = `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
-          const utterance = new SpeechSynthesisUtterance(alert);
-          window.speechSynthesis.speak(utterance);
-          toast.warning(alert);
-        }
-        return prev - 1;
-      });
+      const newTime = timeLeft - 1;
+      updateTime(newTime);
+      
+      if (newTime <= 0) {
+        clearInterval(timer);
+        handleSubmit();
+      } else if (newTime === 300 || newTime === 60) {
+        const minutes = Math.floor(newTime / 60);
+        const alert = `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
+        const utterance = new SpeechSynthesisUtterance(alert);
+        window.speechSynthesis.speak(utterance);
+        toast.warning(alert);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [handleSubmit]);
+  }, [timeLeft, handleSubmit, isLoading, updateTime]);
 
   const currentQ = questions[currentQuestion];
+
+  // Keyboard shortcuts as fallback
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Prevent shortcuts when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault();
+          handleNext();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          handlePrevious();
+          break;
+        case ' ':
+          e.preventDefault();
+          if (isRecording) {
+            stopRecording();
+          } else {
+            startRecording();
+          }
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          readQuestionAndOptions();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentQuestion, isRecording, handleNext, handlePrevious, readQuestionAndOptions, startRecording, stopRecording]);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-4">
+            <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto" />
+            <p className="text-muted-foreground">Loading exam session...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      exam_answers: {
+        Row: {
+          answer_text: string | null
+          created_at: string
+          id: string
+          question_number: number
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          question_number: number
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          question_number?: number
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "exam_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_question: number
+          exam_title: string
+          id: string
+          started_at: string
+          status: string
+          time_remaining: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          exam_title?: string
+          id?: string
+          started_at?: string
+          status?: string
+          time_remaining?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          exam_title?: string
+          id?: string
+          started_at?: string
+          status?: string
+          time_remaining?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
