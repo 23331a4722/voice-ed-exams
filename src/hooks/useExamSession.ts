@@ -85,7 +85,9 @@ export const useExamSession = (totalQuestions: number) => {
           toast.success('New exam session started');
         }
       } catch (error) {
-        console.error('Error initializing session:', error);
+        if (import.meta.env.DEV) {
+          console.error('Error initializing session:', error);
+        }
         toast.error('Failed to initialize exam session');
       } finally {
         setIsLoading(false);
@@ -135,7 +137,9 @@ export const useExamSession = (totalQuestions: number) => {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error updating session:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error updating session:', error);
+      }
     }
   }, [sessionId]);
 

@@ -123,7 +123,9 @@ const Exam = () => {
       };
 
       newRecognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+        if (import.meta.env.DEV) {
+          console.error('Speech recognition error:', event.error);
+        }
         
         // Handle specific errors
         switch (event.error) {

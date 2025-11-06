@@ -77,7 +77,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       setUserRole(data?.role as UserRole);
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error fetching user role:', error);
+      }
       setUserRole(null);
     } finally {
       setLoading(false);
@@ -98,7 +100,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast.success('Login successful!');
       }
     } catch (error: any) {
-      console.error('Sign in error:', error);
+      if (import.meta.env.DEV) {
+        console.error('Sign in error:', error);
+      }
       toast.error(error.message || 'Failed to sign in');
       throw error;
     }
@@ -127,7 +131,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         navigate('/login');
       }
     } catch (error: any) {
-      console.error('Sign up error:', error);
+      if (import.meta.env.DEV) {
+        console.error('Sign up error:', error);
+      }
       
       if (error.message?.includes('already registered')) {
         toast.error('This email is already registered. Please sign in instead.');
