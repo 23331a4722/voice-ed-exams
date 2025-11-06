@@ -7,6 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Users, ClipboardList, BarChart } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
+
+const examSchema = z.object({
+  examTitle: z.string()
+    .trim()
+    .min(3, 'Title must be at least 3 characters')
+    .max(200, 'Title must be less than 200 characters'),
+  duration: z.number()
+    .int('Duration must be a whole number')
+    .min(5, 'Minimum duration is 5 minutes')
+    .max(300, 'Maximum duration is 300 minutes'),
+  questions: z.string()
+    .trim()
+    .min(10, 'Questions are required (minimum 10 characters)')
+    .max(10000, 'Questions exceed maximum length (10,000 characters)')
+});
 
 const Admin = () => {
   const [examTitle, setExamTitle] = useState('');
@@ -24,14 +40,26 @@ const Admin = () => {
 
   const handleCreateExam = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!examTitle || !duration || !questions) {
-      toast.error('Please fill in all fields');
-      return;
+    
+    try {
+      const validated = examSchema.parse({
+        examTitle,
+        duration: parseInt(duration) || 0,
+        questions
+      });
+      
+      // TODO: Save to database when backend is implemented
+      toast.success('Exam created successfully!');
+      setExamTitle('');
+      setDuration('');
+      setQuestions('');
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error('Failed to create exam');
+      }
     }
-    toast.success('Exam created successfully!');
-    setExamTitle('');
-    setDuration('');
-    setQuestions('');
   };
 
   const stats = [

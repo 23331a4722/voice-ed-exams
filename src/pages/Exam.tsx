@@ -85,7 +85,9 @@ const Exam = () => {
       try {
         recognition.stop();
       } catch (e) {
-        console.log('Error stopping previous recognition:', e);
+        if (import.meta.env.DEV) {
+          console.log('Error stopping previous recognition:', e);
+        }
       }
     }
 
@@ -100,7 +102,9 @@ const Exam = () => {
 
       newRecognition.onstart = () => {
         setIsRecording(true);
-        console.log('Recording started');
+        if (import.meta.env.DEV) {
+          console.log('Recording started');
+        }
       };
 
       newRecognition.onresult = (event: any) => {
@@ -142,7 +146,9 @@ const Exam = () => {
             break;
           case 'network':
             // Network errors are usually temporary and non-fatal
-            console.log('Network error (usually temporary, continuing...)');
+            if (import.meta.env.DEV) {
+              console.log('Network error (usually temporary, continuing...)');
+            }
             break;
           case 'aborted':
             // Normal when stopping
@@ -154,7 +160,9 @@ const Exam = () => {
       };
 
       newRecognition.onend = () => {
-        console.log('Recording ended');
+        if (import.meta.env.DEV) {
+          console.log('Recording ended');
+        }
         // Only update state if we're actually stopping
         if (isRecording) {
           setIsRecording(false);
@@ -168,13 +176,17 @@ const Exam = () => {
         try {
           newRecognition.start();
         } catch (err) {
-          console.error('Error starting recording:', err);
+          if (import.meta.env.DEV) {
+            console.error('Error starting recording:', err);
+          }
           setIsRecording(false);
           toast.error('Could not start recording. Please try again.');
         }
       }, 100);
     } catch (error) {
-      console.error('Error initializing speech recognition:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error initializing speech recognition:', error);
+      }
       setIsRecording(false);
       toast.error('Failed to initialize voice recording');
     }
@@ -226,7 +238,9 @@ const Exam = () => {
     };
 
     utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event);
+      if (import.meta.env.DEV) {
+        console.error('Speech synthesis error:', event);
+      }
       setIsReading(false);
       // Even if speech fails, allow recording
       setTimeout(() => {

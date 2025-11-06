@@ -24,14 +24,18 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
         utterance.lang = 'en-US';
         
         utterance.onerror = (event) => {
-          console.error('Speech synthesis error:', event);
+          if (import.meta.env.DEV) {
+            console.error('Speech synthesis error:', event);
+          }
         };
         
         setTimeout(() => {
           window.speechSynthesis.speak(utterance);
         }, 50);
       } catch (error) {
-        console.error('Error in speech synthesis:', error);
+        if (import.meta.env.DEV) {
+          console.error('Error in speech synthesis:', error);
+        }
       }
     }
   }, []);
@@ -124,12 +128,16 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
 
       newRecognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        console.log('Voice command received:', transcript);
+        if (import.meta.env.DEV) {
+          console.log('Voice command received:', transcript);
+        }
         processCommand(transcript);
       };
 
       newRecognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+        if (import.meta.env.DEV) {
+          console.error('Speech recognition error:', event.error);
+        }
         setIsListening(false);
         
         // Handle specific errors gracefully
@@ -145,7 +153,9 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
             break;
           case 'network':
             // Network errors are common and usually temporary, don't show error
-            console.log('Network error in speech recognition (usually temporary)');
+            if (import.meta.env.DEV) {
+              console.log('Network error in speech recognition (usually temporary)');
+            }
             break;
           case 'aborted':
             // Aborted is normal when stopping, don't show error
@@ -166,13 +176,17 @@ export const useVoiceNavigation = (customCommands?: VoiceCommand[]) => {
         try {
           newRecognition.start();
         } catch (err) {
-          console.error('Error starting recognition:', err);
+          if (import.meta.env.DEV) {
+            console.error('Error starting recognition:', err);
+          }
           setIsListening(false);
           toast.error('Could not start voice recognition. Please try again.');
         }
       }, 100);
     } catch (error) {
-      console.error('Error initializing speech recognition:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error initializing speech recognition:', error);
+      }
       toast.error('Failed to initialize voice recognition');
       setIsListening(false);
     }

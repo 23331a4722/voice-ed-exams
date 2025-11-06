@@ -185,7 +185,9 @@ export const useExamSession = (totalQuestions: number) => {
       if (error) throw error;
       toast.success('Exam submitted successfully!');
     } catch (error) {
-      console.error('Error completing session:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error completing session:', error);
+      }
       toast.error('Failed to submit exam');
     }
   }, [sessionId, timeLeft]);

@@ -155,7 +155,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast.success('Signed out successfully');
       navigate('/');
     } catch (error: any) {
-      console.error('Sign out error:', error);
+      if (import.meta.env.DEV) {
+        console.error('Sign out error:', error);
+      }
       toast.error('Failed to sign out');
     }
   };
