@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Users, ClipboardList, BarChart } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const examSchema = z.object({
   examTitle: z.string()
@@ -25,6 +27,7 @@ const examSchema = z.object({
 });
 
 const Admin = () => {
+  const { user } = useAuth();
   const [examTitle, setExamTitle] = useState('');
   const [duration, setDuration] = useState('');
   const [questions, setQuestions] = useState('');
@@ -38,7 +41,7 @@ const Admin = () => {
     }, 500);
   }, []);
 
-  const handleCreateExam = (e: React.FormEvent) => {
+  const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
@@ -48,7 +51,38 @@ const Admin = () => {
         questions
       });
       
-      // TODO: Save to database when backend is implemented
+      // Create exam in database
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .insert({
+          title: validated.examTitle,
+          duration: validated.duration * 60, // Convert minutes to seconds
+          description: 'Created from admin panel',
+          created_by: user?.id,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (examError) throw examError;
+
+      // Parse questions (assuming one per line for now)
+      const questionLines = validated.questions.split('\n').filter(q => q.trim());
+      const questionInserts = questionLines.map((q, index) => ({
+        exam_id: examData.id,
+        question_number: index,
+        question_text: q.trim(),
+        question_type: 'text' as const
+      }));
+
+      if (questionInserts.length > 0) {
+        const { error: questionsError } = await supabase
+          .from('exam_questions')
+          .insert(questionInserts);
+
+        if (questionsError) throw questionsError;
+      }
+      
       toast.success('Exam created successfully!');
       setExamTitle('');
       setDuration('');
@@ -57,6 +91,9 @@ const Admin = () => {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
       } else {
+        if (import.meta.env.DEV) {
+          console.error('Error creating exam:', error);
+        }
         toast.error('Failed to create exam');
       }
     }

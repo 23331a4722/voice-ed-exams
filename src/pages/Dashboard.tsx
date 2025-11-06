@@ -9,7 +9,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const announcement = 'Student Dashboard. You have 3 available exams. Use voice commands or tap to start an exam.';
+    const announcement = 'Student Dashboard. Browse available exams or check your results. Use voice commands or tap to navigate.';
     const utterance = new SpeechSynthesisUtterance(announcement);
     utterance.rate = 0.9;
     setTimeout(() => {
@@ -17,28 +17,10 @@ const Dashboard = () => {
     }, 500);
   }, []);
 
-  const exams = [
-    {
-      id: 1,
-      title: 'Mathematics Final Exam',
-      duration: '60 minutes',
-      questions: 25,
-      status: 'available'
-    },
-    {
-      id: 2,
-      title: 'English Literature Quiz',
-      duration: '30 minutes',
-      questions: 15,
-      status: 'available'
-    },
-    {
-      id: 3,
-      title: 'Science Midterm',
-      duration: '45 minutes',
-      questions: 20,
-      status: 'completed'
-    }
+  const stats = [
+    { label: 'Available Exams', value: '3', icon: ClipboardList },
+    { label: 'Completed', value: '5', icon: CheckCircle2 },
+    { label: 'Average Score', value: '85%', icon: Clock },
   ];
 
   return (
@@ -46,61 +28,75 @@ const Dashboard = () => {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-2">Welcome Back, Student!</h1>
         <p className="text-accessible text-muted-foreground mb-8">
-          Select an exam to begin, or use voice commands like "Start exam"
+          Your exam dashboard - start a new exam or review your progress
         </p>
 
-        <div className="grid gap-6">
-          {exams.map((exam) => (
-            <Card 
-              key={exam.id}
-              className={`gradient-card border-2 ${
-                exam.status === 'available' 
-                  ? 'border-primary/50 hover:border-primary' 
-                  : 'border-border opacity-75'
-              } transition-all`}
-            >
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {stats.map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={index} className="gradient-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-accessible text-muted-foreground mb-1">
+                        {stat.label}
+                      </p>
+                      <p className="text-3xl font-bold">{stat.value}</p>
+                    </div>
+                    <Icon className="h-10 w-10 text-primary opacity-50" />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="gradient-card border-2 border-primary/50 hover:border-primary transition-all cursor-pointer"
+                onClick={() => navigate('/exams')}>
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-2xl mb-2">{exam.title}</CardTitle>
-                  <CardDescription className="text-accessible">
-                    <span className="flex items-center gap-4 mt-2">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {exam.duration}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <ClipboardList className="h-4 w-4" />
-                        {exam.questions} questions
-                      </span>
-                    </span>
-                  </CardDescription>
-                </div>
-                  {exam.status === 'completed' && (
-                    <CheckCircle2 className="h-6 w-6 text-success" />
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {exam.status === 'available' ? (
-                  <Button
-                    onClick={() => navigate('/exam')}
-                    className="min-h-[48px] w-full sm:w-auto shadow-glow"
-                  >
-                    Start Exam
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => navigate('/results')}
-                    variant="outline"
-                    className="min-h-[48px] w-full sm:w-auto"
-                  >
-                    View Results
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <ClipboardList className="h-6 w-6" />
+                Browse Exams
+              </CardTitle>
+              <CardDescription className="text-accessible">
+                View and start available exams
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => navigate('/exams')}
+                className="min-h-[48px] w-full shadow-glow"
+              >
+                View All Exams
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="gradient-card border-2 border-border hover:border-primary/50 transition-all cursor-pointer"
+                onClick={() => navigate('/results')}>
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <CheckCircle2 className="h-6 w-6" />
+                My Results
+              </CardTitle>
+              <CardDescription className="text-accessible">
+                Review your exam performance
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => navigate('/results')}
+                variant="outline"
+                className="min-h-[48px] w-full"
+              >
+                View Results
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </Layout>

@@ -49,11 +49,50 @@ export type Database = {
           },
         ]
       }
+      exam_questions: {
+        Row: {
+          created_at: string
+          exam_id: string
+          id: string
+          options: Json | null
+          question_number: number
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          created_at?: string
+          exam_id: string
+          id?: string
+          options?: Json | null
+          question_number: number
+          question_text: string
+          question_type: string
+        }
+        Update: {
+          created_at?: string
+          exam_id?: string
+          id?: string
+          options?: Json | null
+          question_number?: number
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_questions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exam_sessions: {
         Row: {
           completed_at: string | null
           created_at: string
           current_question: number
+          exam_id: string | null
           exam_title: string
           id: string
           started_at: string
@@ -66,6 +105,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_question?: number
+          exam_id?: string | null
           exam_title?: string
           id?: string
           started_at?: string
@@ -78,6 +118,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_question?: number
+          exam_id?: string | null
           exam_title?: string
           id?: string
           started_at?: string
@@ -85,6 +126,47 @@ export type Database = {
           time_remaining?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_sessions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration: number
+          id: string
+          is_active: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration?: number
+          id?: string
+          is_active?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration?: number
+          id?: string
+          is_active?: boolean
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }

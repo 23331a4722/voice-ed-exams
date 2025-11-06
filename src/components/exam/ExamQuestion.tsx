@@ -12,40 +12,20 @@ interface Question {
 
 interface ExamQuestionProps {
   question: Question;
-  currentIndex: number;
-  totalQuestions: number;
-  onRepeat: () => void;
-  isReading: boolean;
+  questionNumber: number;
 }
 
 export const ExamQuestion = ({
   question,
-  currentIndex,
-  totalQuestions,
-  onRepeat,
-  isReading,
+  questionNumber,
 }: ExamQuestionProps) => {
-  const progress = ((currentIndex + 1) / totalQuestions) * 100;
 
   return (
     <Card className="gradient-card border-primary/50">
       <CardHeader>
-        <div className="flex justify-between items-start mb-4">
-          <CardTitle className="text-2xl">
-            Question {currentIndex + 1} of {totalQuestions}
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onRepeat}
-            className="min-w-[44px] min-h-[44px] hover-scale"
-            aria-label="Repeat question"
-            disabled={isReading}
-          >
-            <Volume2 className="h-5 w-5" />
-          </Button>
-        </div>
-        <Progress value={progress} className="h-2 mb-4" />
+        <CardTitle className="text-2xl">
+          Question {questionNumber + 1}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="mb-6">

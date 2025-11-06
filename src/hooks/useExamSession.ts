@@ -16,25 +16,26 @@ const answerSchema = z.object({
   answerText: z.string().max(5000, 'Answer exceeds maximum length of 5000 characters')
 });
 
-export const useExamSession = (totalQuestions: number) => {
+export const useExamSession = (totalQuestions: number, examId?: string, examDuration?: number) => {
   const { user } = useAuth();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(3600);
+  const [timeLeft, setTimeLeft] = useState(examDuration || 3600);
   const [answers, setAnswers] = useState<string[]>(new Array(totalQuestions).fill(''));
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize or resume session
   useEffect(() => {
     const initSession = async () => {
-      if (!user) return;
+      if (!user || !examId) return;
 
       try {
-        // Check for existing in-progress session
+        // Check for existing in-progress session for this specific exam
         const { data: existingSessions, error: fetchError } = await supabase
           .from('exam_sessions')
           .select('*')
           .eq('user_id', user.id)
+          .eq('exam_id', examId)
           .eq('status', 'in_progress')
           .order('created_at', { ascending: false })
           .limit(1);
@@ -71,8 +72,8 @@ export const useExamSession = (totalQuestions: number) => {
             .from('exam_sessions')
             .insert({
               user_id: user.id,
-              exam_title: 'Practice Exam',
-              time_remaining: 3600,
+              exam_id: examId,
+              time_remaining: examDuration || 3600,
               current_question: 0,
               status: 'in_progress'
             })
@@ -95,7 +96,7 @@ export const useExamSession = (totalQuestions: number) => {
     };
 
     initSession();
-  }, [user, totalQuestions]);
+  }, [user, totalQuestions, examId, examDuration]);
 
   // Save answer to database
   const saveAnswer = useCallback(async (questionNumber: number, answerText: string) => {

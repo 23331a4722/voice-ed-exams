@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Exams from "./pages/Exams";
 import Exam from "./pages/Exam";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
@@ -36,7 +37,15 @@ const App = () => (
               } 
             />
             <Route 
-              path="/exam" 
+              path="/exams" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <Exams />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/exam/:examId" 
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <Exam />

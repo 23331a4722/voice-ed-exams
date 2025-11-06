@@ -19,7 +19,7 @@ export const Layout = ({ children, showNav = true }: LayoutProps) => {
 
   const navItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
-    { icon: ClipboardList, label: 'Exams', path: '/exam' },
+    { icon: ClipboardList, label: 'Exams', path: '/exams' },
     { icon: BarChart3, label: 'Results', path: '/results' },
     { icon: Settings, label: 'Admin', path: '/admin' },
   ];

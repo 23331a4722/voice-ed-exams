@@ -3,9 +3,12 @@ import { Mic } from 'lucide-react';
 interface ExamAnswerProps {
   answer: string;
   isRecording: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onClearAnswer: () => void;
 }
 
-export const ExamAnswer = ({ answer, isRecording }: ExamAnswerProps) => {
+export const ExamAnswer = ({ answer, isRecording, onStartRecording, onStopRecording, onClearAnswer }: ExamAnswerProps) => {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">

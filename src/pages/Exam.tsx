@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useVoiceNavigation } from '@/hooks/useVoiceNavigation';
 import { useExamSession } from '@/hooks/useExamSession';
+import { useExamWithQuestions } from '@/hooks/useExamWithQuestions';
 import { ExamHeader } from '@/components/exam/ExamHeader';
 import { VoiceInstructions } from '@/components/exam/VoiceInstructions';
 import { VoiceStatusBanner } from '@/components/exam/VoiceStatusBanner';
 import { ExamQuestion } from '@/components/exam/ExamQuestion';
 import { ExamAnswer } from '@/components/exam/ExamAnswer';
 import { ExamNavigation } from '@/components/exam/ExamNavigation';
+import { Loader2 } from 'lucide-react';
 
 interface Question {
   id: number;
@@ -20,37 +22,13 @@ interface Question {
 
 const Exam = () => {
   const navigate = useNavigate();
+  const { examId } = useParams<{ examId: string }>();
   const [isRecording, setIsRecording] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
-  const questions: Question[] = [
-    {
-      id: 1,
-      question: 'What is the capital of France?',
-      options: ['A: London', 'B: Paris', 'C: Berlin', 'D: Madrid'],
-      type: 'multiple-choice'
-    },
-    {
-      id: 2,
-      question: 'Which planet is known as the Red Planet?',
-      options: ['A: Venus', 'B: Mars', 'C: Jupiter', 'D: Saturn'],
-      type: 'multiple-choice'
-    },
-    {
-      id: 3,
-      question: 'What is the largest ocean on Earth?',
-      options: ['A: Atlantic Ocean', 'B: Indian Ocean', 'C: Arctic Ocean', 'D: Pacific Ocean'],
-      type: 'multiple-choice'
-    },
-    {
-      id: 4,
-      question: 'Explain the process of photosynthesis in plants.',
-      type: 'text'
-    }
-  ];
-
-  const TOTAL_TIME = 3600;
+  // Load exam and questions from database
+  const { exam, questions, isLoading: examLoading } = useExamWithQuestions(examId);
 
   // Initialize exam session with persistence
   const {
@@ -58,12 +36,12 @@ const Exam = () => {
     currentQuestion,
     timeLeft,
     answers,
-    isLoading,
+    isLoading: sessionLoading,
     updateAnswer,
     updateCurrentQuestion,
     updateTime,
     completeSession
-  } = useExamSession(questions.length);
+  } = useExamSession(questions.length, examId, exam?.duration);
 
   const stopRecording = useCallback(() => {
     if (recognition) {
@@ -263,7 +241,7 @@ const Exam = () => {
     
     if (currentQuestion < questions.length - 1) {
       updateCurrentQuestion(currentQuestion + 1);
-      toast.success('Moving to next question');
+      toast.success('Next question');
     }
   }, [currentQuestion, questions.length, stopRecording, updateCurrentQuestion]);
 
@@ -273,7 +251,7 @@ const Exam = () => {
     
     if (currentQuestion > 0) {
       updateCurrentQuestion(currentQuestion - 1);
-      toast.success('Going to previous question');
+      toast.success('Previous question');
     }
   }, [currentQuestion, stopRecording, updateCurrentQuestion]);
 
@@ -282,205 +260,162 @@ const Exam = () => {
     window.speechSynthesis.cancel();
     
     await completeSession();
-    
-    const utterance = new SpeechSynthesisUtterance('Exam submitted successfully! Showing your results.');
-    utterance.onend = () => {
-      navigate('/results');
-    };
-    window.speechSynthesis.speak(utterance);
-  }, [navigate, stopRecording, completeSession]);
+    toast.success('Exam submitted!');
+    navigate('/results');
+  }, [stopRecording, completeSession, navigate]);
 
-
-  // Voice command to read current answer
-  const handleSpeakAnswer = useCallback(() => {
-    const answer = answers[currentQuestion];
-    if (answer) {
-      speak(`Your current answer is: ${answer}`);
-    } else {
-      speak('No answer recorded yet');
-    }
-  }, [answers, currentQuestion]);
-
-  // Enhanced voice commands specific to the exam
-  const examVoiceCommands = [
+  // Voice commands specific to exam
+  const examCommands = [
+    {
+      command: 'read question',
+      keywords: ['read question', 'repeat question', 'read it'],
+      action: readQuestionAndOptions
+    },
+    {
+      command: 'start recording',
+      keywords: ['start recording', 'record', 'begin answer'],
+      action: startRecording
+    },
+    {
+      command: 'stop recording',
+      keywords: ['stop recording', 'stop', 'end recording'],
+      action: stopRecording
+    },
+    {
+      command: 'clear answer',
+      keywords: ['clear answer', 'delete answer', 'remove answer'],
+      action: handleClearAnswer
+    },
     {
       command: 'next question',
-      keywords: ['next question', 'next', 'skip', 'move on'],
+      keywords: ['next question', 'next', 'go to next'],
       action: handleNext
     },
     {
       command: 'previous question',
-      keywords: ['previous question', 'previous', 'back', 'go back', 'last question'],
+      keywords: ['previous question', 'previous', 'go back'],
       action: handlePrevious
     },
     {
       command: 'submit exam',
-      keywords: ['submit exam', 'submit', 'finish exam', 'finish', 'complete exam', 'done'],
+      keywords: ['submit exam', 'submit', 'finish exam'],
       action: handleSubmit
-    },
-    {
-      command: 'repeat question',
-      keywords: ['repeat question', 'repeat', 'say again', 'read again', 'what was the question'],
-      action: readQuestionAndOptions
-    },
-    {
-      command: 'stop recording',
-      keywords: ['stop recording', 'stop', 'pause recording', 'pause'],
-      action: stopRecording
-    },
-    {
-      command: 'start recording',
-      keywords: ['start recording', 'record', 'begin recording', 'resume'],
-      action: startRecording
-    },
-    {
-      command: 'clear answer',
-      keywords: ['clear answer', 'delete answer', 'remove answer', 'erase answer'],
-      action: handleClearAnswer
-    },
-    {
-      command: 'read answer',
-      keywords: ['read answer', 'read my answer', 'what did I say', 'my answer'],
-      action: handleSpeakAnswer
     }
   ];
 
-  const { speak, isListening, startListening } = useVoiceNavigation(examVoiceCommands);
+  const { speak } = useVoiceNavigation(examCommands);
+
+  // Countdown timer
+  useEffect(() => {
+    if (sessionLoading || examLoading) return;
+
+    const timer = setInterval(() => {
+      updateTime(timeLeft - 1);
+    }, 1000);
+
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      handleSubmit();
+    }
+
+    return () => clearInterval(timer);
+  }, [sessionLoading, examLoading, timeLeft, handleSubmit, updateTime]);
+
+  // Read question when it changes
+  useEffect(() => {
+    if (questions.length > 0 && !sessionLoading && !examLoading) {
+      setTimeout(() => {
+        readQuestionAndOptions();
+      }, 1000);
+    }
+  }, [currentQuestion, questions.length, sessionLoading, examLoading]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      switch(e.key) {
-        case 'ArrowRight':
-          if (currentQuestion < questions.length - 1) {
-            handleNext();
-          }
-          break;
-        case 'ArrowLeft':
-          if (currentQuestion > 0) {
-            handlePrevious();
-          }
-          break;
-        case ' ':
-          e.preventDefault();
-          if (isRecording) {
-            stopRecording();
-          } else {
-            startRecording();
-          }
-          break;
-        case 'r':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            readQuestionAndOptions();
-          }
-          break;
+      if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+      }
+      if (e.key === 'ArrowRight' && !isRecording) {
+        handleNext();
+      }
+      if (e.key === 'ArrowLeft' && !isRecording) {
+        handlePrevious();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentQuestion, questions.length, isRecording, handleNext, handlePrevious, stopRecording, startRecording, readQuestionAndOptions]);
+  }, [isRecording, startRecording, stopRecording, handleNext, handlePrevious]);
 
-  // Read question and start voice listening when component mounts
-  useEffect(() => {
-    const announcement = 'Exam started. This is a fully voice-driven exam. Questions will be read automatically and your answers will be saved in real-time. Say next question to skip, previous question to go back, repeat question to hear again, clear answer to delete, read answer to hear your response, stop recording to pause, or submit exam when finished. You can also use keyboard shortcuts: arrow keys to navigate, spacebar to start or stop recording, and Control R to repeat the question.';
-    const utterance = new SpeechSynthesisUtterance(announcement);
-    utterance.rate = 0.9;
-    utterance.onend = () => {
-      setTimeout(() => {
-        if (!isListening) {
-          startListening();
-          toast.info('🎤 Voice commands active', { duration: 2000 });
-        }
-      }, 500);
-      setTimeout(() => readQuestionAndOptions(), 1000);
-    };
-    
-    setTimeout(() => {
-      window.speechSynthesis.speak(utterance);
-    }, 500);
-
-    return () => {
-      stopRecording();
-      window.speechSynthesis.cancel();
-    };
-  }, []);
-
-  // Read question when it changes
-  useEffect(() => {
-    if (currentQuestion > 0) {
-      setTimeout(() => readQuestionAndOptions(), 500);
-    }
-  }, [currentQuestion]);
-
-  // Timer effect with session persistence
-  useEffect(() => {
-    if (isLoading) return;
-
-    const timer = setInterval(() => {
-      const newTime = timeLeft - 1;
-      updateTime(newTime);
-      
-      if (newTime <= 0) {
-        clearInterval(timer);
-        handleSubmit();
-      } else if (newTime === 300 || newTime === 60) {
-        const minutes = Math.floor(newTime / 60);
-        const alert = `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
-        const utterance = new SpeechSynthesisUtterance(alert);
-        window.speechSynthesis.speak(utterance);
-        toast.warning(alert);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, handleSubmit, isLoading, updateTime]);
-
-  const currentQ = questions[currentQuestion];
-
-  if (isLoading) {
+  // Loading states
+  if (examLoading || sessionLoading || !exam || questions.length === 0) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center space-y-4">
-            <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-            <p className="text-muted-foreground">Loading exam session...</p>
-          </div>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  // Check if exam ID is missing
+  if (!examId) {
+    return (
+      <Layout>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">No exam selected</h2>
+          <p className="text-muted-foreground mb-4">Please select an exam to begin</p>
+          <button 
+            onClick={() => navigate('/exams')}
+            className="text-primary underline"
+          >
+            Go to exams
+          </button>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout>
-      <div className="max-w-3xl mx-auto space-y-6">
-        
+    <Layout showNav={false}>
+      <div className="max-w-4xl mx-auto">
         <VoiceInstructions />
+        <VoiceStatusBanner isRecording={isRecording} isReading={isReading} />
         
-        <VoiceStatusBanner isReading={isReading} isRecording={isRecording} />
-        
-        <ExamHeader timeLeft={timeLeft} totalTime={TOTAL_TIME} />
-        
-        <ExamQuestion
-          question={currentQ}
-          currentIndex={currentQuestion}
+        <ExamHeader 
+          examTitle={exam.title}
+          currentQuestion={currentQuestion}
           totalQuestions={questions.length}
-          onRepeat={readQuestionAndOptions}
-          isReading={isReading}
+          timeLeft={timeLeft}
         />
-        
-        <ExamAnswer answer={answers[currentQuestion]} isRecording={isRecording} />
-        
+
+        <div className="space-y-6 mb-8">
+          <ExamQuestion
+            question={questions[currentQuestion]}
+            questionNumber={currentQuestion}
+          />
+
+          <ExamAnswer
+            answer={answers[currentQuestion] || ''}
+            isRecording={isRecording}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onClearAnswer={handleClearAnswer}
+          />
+        </div>
+
         <ExamNavigation
           currentQuestion={currentQuestion}
           totalQuestions={questions.length}
-          onPrevious={() => {}}
-          onNext={() => {}}
-          onSubmit={() => {}}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          onSubmit={handleSubmit}
         />
       </div>
     </Layout>
