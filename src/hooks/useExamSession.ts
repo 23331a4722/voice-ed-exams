@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
 
 interface ExamSession {
   id: string;
@@ -9,6 +10,11 @@ interface ExamSession {
   time_remaining: number;
   status: string;
 }
+
+const answerSchema = z.object({
+  questionNumber: z.number().int().min(0).max(100),
+  answerText: z.string().max(5000, 'Answer exceeds maximum length of 5000 characters')
+});
 
 export const useExamSession = (totalQuestions: number) => {
   const { user } = useAuth();
@@ -94,20 +100,26 @@ export const useExamSession = (totalQuestions: number) => {
     if (!sessionId) return;
 
     try {
+      // Validate inputs
+      const validated = answerSchema.parse({ questionNumber, answerText });
+
       const { error } = await supabase
         .from('exam_answers')
         .upsert({
           session_id: sessionId,
-          question_number: questionNumber,
-          answer_text: answerText
+          question_number: validated.questionNumber,
+          answer_text: validated.answerText
         }, {
           onConflict: 'session_id,question_number'
         });
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error saving answer:', error);
-      toast.error('Failed to save answer');
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error('Failed to save answer');
+      }
     }
   }, [sessionId]);
 
